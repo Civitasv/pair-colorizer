@@ -150,7 +150,7 @@ The function should not move the point or mark or change the match data."
         (remove-text-properties
          pos
          (1+ pos)
-         `(face nil
+         `(,property nil
                 front-sticky nil
                 rear-nonsticky nil))
         )
@@ -166,7 +166,7 @@ The function should not move the point or mark or change the match data."
         (add-text-properties
          pos
          (1+ pos)
-         `(face ,value
+         `(,property ,value
                 front-sticky nil
                 rear-nonsticky t)
          ))
@@ -232,7 +232,6 @@ The function should not move the point or mark or change the match data."
              (let ((face
                     (funcall rainbow-delimiters-pick-face-function depth t cursor t))
                    )
-               ;; cache older
                (rainbow-delimiters--remove-text-property start 'face nil)
                (rainbow-delimiters--remove-text-property (- end 1) 'face nil)
                (rainbow-delimiters--add-text-property start 'face face)
