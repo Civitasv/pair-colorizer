@@ -173,7 +173,7 @@ The function should not move the point or mark or change the match data."
     )
   )
 
-(defun rainbow-delimiters--cancel-last-paren (&optional force)
+(defun rainbow-delimiters--cache-last-paren (&optional force)
   (defun helper (start end face)
     (if (< start end)
         (progn 
@@ -240,7 +240,7 @@ The function should not move the point or mark or change the match data."
 (defun rainbow-delimiters--inside-this-parenthesis-event ()
   (do-stuff-if-moved-post-command
    (lambda ()
-     (rainbow-delimiters--cancel-last-paren)
+     (rainbow-delimiters--cache-last-paren)
      (rainbow-delimiters--highlight-current-cursor-paren)
      )))
 
@@ -468,7 +468,7 @@ Used by font-lock for dynamic highlighting."
 
   (make-local-variable 'post-command-hook)
   (remove-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event t)
-  (rainbow-delimiters--cancel-last-paren t)
+  (rainbow-delimiters--cache-last-paren t)
 
   (set
    (make-variable-buffer-local 'rainbow-delimiters-enable-current-cursor-paren)
@@ -478,7 +478,7 @@ Used by font-lock for dynamic highlighting."
   
   (when rainbow-delimiters-emphasise-current-cursor-delimiters-mode
     (add-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event 0 t)
-    (rainbow-delimiters--cancel-last-paren)
+    (rainbow-delimiters--cache-last-paren)
     (rainbow-delimiters--highlight-current-cursor-paren)
     ))
 
