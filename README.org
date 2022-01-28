@@ -1,0 +1,91 @@
+* rainbow-delimiters (with emphasise)
+
+It is a fork from the brilliant [[https://github.com/Fanael/rainbow-delimiters][rainbow-delimiters]], base it, I develop the emphasise delimiters of current cursor mode. Since I change too much of it, So I make a new repo to develop it.
+
+Generally, it contains two Emacs modes:
+
+- =rainbow-delimiters-mode= (as usual) is used to highlight delimiters
+- and =rainbow-delimiters-emphasise-current-cursor-delimiters-mode= is used to highlight the delimilters of current cursor, which kinda like vscode.
+
+** show case
+
+#+CAPTION: example
+#+Name: case
+[[./case.gif]]
+
+* Installation
+
+Currently, this tool is in alpha state, maybe it's not perfect, so I don't upload it to Melpa or elpa, but when it is, I will.
+
+You can install it manually, steps:
+- download rainbow-delimiters.el
+- put it into your load directory
+- (add-to-list 'load-path "~/.emacs.d/xx/xx")
+
+You can also use =package-install-from-buffer= to install it.
+
+* Usage
+
+To toggle the =rainbow-delimiters-mode= in the current buffer:
+
+#+begin_src emacs-lisp
+M-x rainbow-delimiters-mode
+#+end_src
+
+To toggle the =rainbow-delimiters-emphasise-current-cursor-delimiters-mode= in the current buffer:
+
+#+begin_src emacs-lisp
+M-x rainbow-delimiters-emphasise-current-cursor-delimiters-mode
+#+end_src
+
+To start the mode automatically in most programming modes (Emacs 24 and above):
+
+#+begin_src emacs-lisp
+  (add-hook 'prog-mode-hook #'rainbow-delimiters-mode)
+  (add-hook 'prog-mode-hook #'rainbow-delimiters-emphasise-current-cursor-delimiters-mode)
+#+end_src
+
+* configuration
+
+=rainbow-delimiters-mode= is supported by a lot of color themes such as Zenburn and Soloarized, but surely not =rainbow-delimiters-emphasise-current-cursor-delimiters-mode=.
+
+You can customize it use:
+
+#+begin_src emacs-lisp
+M-x customize-group <RET> rainbow-delimiters
+#+end_src
+
+Or custom it use =custom-set-faces= (actually same as above). Below is my configuration for =doom-material=.
+
+#+begin_src emacs-lisp
+  (custom-set-faces
+   '(rainbow-delimiters-base-error-face ((t (:inherit rainbow-delimiters-base-face :foreground "#ff5370"))))
+   '(rainbow-delimiters-base-face ((t (:inherit default))))
+   '(rainbow-delimiters-depth-1-face ((t (:foreground "#c792ea"))))
+   '(rainbow-delimiters-depth-2-face ((t (:foreground "#f78c6c"))))
+   '(rainbow-delimiters-depth-3-face ((t (:foreground "#c3e88d"))))
+   '(rainbow-delimiters-depth-4-face ((t (:foreground "#89DDFF"))))
+   '(rainbow-delimiters-depth-5-face ((t (:foreground "#bb80b3"))))
+   '(rainbow-delimiters-depth-6-face ((t (:foreground "#ffcb6b"))))
+   '(rainbow-delimiters-depth-7-face ((t (:foreground "#82aaff"))))
+   '(rainbow-delimiters-depth-8-face ((t (:foreground "#44b9b1"))))
+   '(rainbow-delimiters-depth-9-face ((t (:foreground "#80cbc4"))))
+   '(rainbow-delimiters-inside-depth-1-face ((t (:inherit rainbow-delimiters-base-face :foreground "#c792ea" :box (:line-width 1 :color "grey75") :height 1.2 :width normal))))
+   '(rainbow-delimiters-inside-depth-2-face ((t (:inherit rainbow-delimiters-base-face :foreground "#f78c6c" :box (:line-width 1 :color "grey75") :height 1.2 :width normal))))
+   '(rainbow-delimiters-inside-depth-3-face ((t (:inherit rainbow-delimiters-base-face :foreground "#c3e88d" :box (:line-width 1 :color "grey75") :height 1.2 :width normal))))
+   '(rainbow-delimiters-inside-depth-4-face ((t (:inherit rainbow-delimiters-base-face :foreground "#89DDFF" :box (:line-width 1 :color "grey75") :height 1.2 :width normal))))
+   '(rainbow-delimiters-inside-depth-5-face ((t (:inherit rainbow-delimiters-base-face :foreground "#bb80b3" :box (:line-width 1 :color "grey75") :height 1.2 :width normal))))
+   '(rainbow-delimiters-inside-depth-6-face ((t (:inherit rainbow-delimiters-base-face :foreground "#ffcb6b" :box (:line-width 1 :color "grey75") :height 1.2 :width normal))))
+   '(rainbow-delimiters-inside-depth-7-face ((t (:inherit rainbow-delimiters-base-face :foreground "#82aaff" :box (:line-width 1 :color "grey75") :height 1.2 :width normal))))
+   '(rainbow-delimiters-inside-depth-8-face ((t (:inherit rainbow-delimiters-base-face :foreground "#44b9b1" :box (:line-width 1 :color "grey75") :height 1.2 :width normal))))
+   '(rainbow-delimiters-inside-depth-9-face ((t (:inherit rainbow-delimiters-base-face :foreground "#80cbc4" :box (:line-width 1 :color "grey75") :height 1.2 :width normal))))
+   '(rainbow-delimiters-mismatched-face ((t (:inherit rainbow-delimiters-unmatched-face))))
+   '(rainbow-delimiters-unmatched-face ((t (:foreground "#ff5370" :inverse-video t :weight bold)))))
+#+end_src
+
+
+Hope it will help you!
+
+And I'll appreciate it if you can star this repo.
+
+If you have any bugs, please issue it, help me make it better!
