@@ -206,23 +206,25 @@ The function should not move the point or mark or change the match data."
 
 (defun rainbow-delimiters--analysis (p)
   "analysis point p"
-  (let* ((ppss (syntax-ppss p))
-         (depth (nth 0 ppss))
-         (cstart (nth 1 ppss))
-         (cend (if cstart
-                   (save-excursion
-                     (goto-char cstart)
-                     (ignore-errors (forward-list))
-                     (point))
-                 nil)))
-    (let ((matches-p (and
-                      depth
-                      cstart
-                      cend
-                      (rainbow-delimiters--match (char-after cstart) (char-after (1- cend))))))
-      (if matches-p
-          `(,p ,depth ,cstart ,cend)
-        '()))))
+  (when (and (<= p (point-max))
+             (>= p (point-min)))
+    (let* ((ppss (syntax-ppss p))
+           (depth (nth 0 ppss))
+           (cstart (nth 1 ppss))
+           (cend (if cstart
+                     (save-excursion
+                       (goto-char cstart)
+                       (ignore-errors (forward-list))
+                       (point))
+                   nil)))
+      (let ((matches-p (and
+                        depth
+                        cstart
+                        cend
+                        (rainbow-delimiters--match (char-after cstart) (char-after (1- cend))))))
+        (if matches-p
+            `(,p ,depth ,cstart ,cend)
+          '())))))
 
 (defun rainbow-delimiters--choose-delimiter (p)
   "when both current and left exist delimiter, we choose the left" 
@@ -243,46 +245,46 @@ The function should not move the point or mark or change the match data."
             (t
              current)))))
 
-(defun rainbow-delimiters--cancel-last-and-cache-now (&optional force)
+(defun rainbow-delimiters--cancel-last-and-cache-now (&optional onlycancel)
   (defun recover (start end face)
-    (progn 
+    (when (and start end)
       (rainbow-delimiters--remove-text-property start 'face nil)
       (rainbow-delimiters--remove-text-property (- end 1) 'face nil)
       (rainbow-delimiters--add-text-property start 'face face)
       (rainbow-delimiters--add-text-property (- end 1) 'face face)))
   
   (with-silent-modifications
-    (let* ((data (rainbow-delimiters--choose-delimiter (point)))
-           (depth (cadr data))
-           (cstart (caddr data))
-           (cend (cadddr data)))
-      (let ((lopen
-             (car rainbow-delimiters--last-paren))
-            (lclose
-             (cadr rainbow-delimiters--last-paren))
-            (loface
-             (caddr rainbow-delimiters--last-paren)))
-        (cond ((and cstart cend (or (not lopen) (not lclose)))
-               (setq rainbow-delimiters--last-paren
-                     `(,cstart ,cend
-                               ,(get-text-property cstart 'face))))
-              ((and lopen lclose force)
-               (recover lopen lclose loface)
-               (setq rainbow-delimiters--last-paren
-                     '()))
-              ((and lopen lclose (not cstart))
-               (recover lopen lclose loface)
-               (setq rainbow-delimiters--last-paren
-                     '()))
-              ((and lopen lclose cstart (/= lopen cstart))
-               (recover lopen lclose loface)
-               (setq rainbow-delimiters--last-paren
-                     `(,cstart ,cend
-                               ,(get-text-property cstart 'face))))
-              ((and lopen lclose cstart cend (/= lclose cend))
-               (setcar (cdr rainbow-delimiters--last-paren)
-                       cend)
-               ))))))
+    (let ((lopen
+           (car rainbow-delimiters--last-paren))
+          (lclose
+           (cadr rainbow-delimiters--last-paren))
+          (loface
+           (caddr rainbow-delimiters--last-paren)))
+      (if onlycancel
+          (progn (recover lopen lclose loface)
+                 (setq rainbow-delimiters--last-paren
+                       '()))
+        (let* ((data (rainbow-delimiters--choose-delimiter (point)))
+               (depth (cadr data))
+               (cstart (caddr data))
+               (cend (cadddr data)))
+          (cond ((and cstart cend (or (not lopen) (not lclose)))
+                 (setq rainbow-delimiters--last-paren
+                       `(,cstart ,cend
+                                 ,(get-text-property cstart 'face))))
+                ((and lopen lclose (not cstart))
+                 (recover lopen lclose loface)
+                 (setq rainbow-delimiters--last-paren
+                       '()))
+                ((and lopen lclose cstart (/= lopen cstart))
+                 (recover lopen lclose loface)
+                 (setq rainbow-delimiters--last-paren
+                       `(,cstart ,cend
+                                 ,(get-text-property cstart 'face))))
+                ((and lopen lclose cstart cend (/= lclose cend))
+                 (setcar (cdr rainbow-delimiters--last-paren)
+                         cend)
+                 )))))))
 
 (defun rainbow-delimiters--highlight-current-cursor-paren ()
   (with-silent-modifications
@@ -553,14 +555,11 @@ Used by font-lock for dynamic highlighting."
   (font-lock-remove-keywords nil rainbow-delimiters--font-lock-keywords))
 
 (defun rainbow-delimiters-enable-emphasise ()
-  (add-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event 0 t)
-  (rainbow-delimiters--cancel-last-and-cache-now)
-  (rainbow-delimiters--highlight-current-cursor-paren))
+  (add-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event 0 t))
 
 (defun rainbow-delimiters-disable-emphasise ()
   (make-local-variable 'post-command-hook)
   (remove-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event t)
-  (rainbow-delimiters--cancel-last-and-cache-now t)
 
   (set (make-variable-buffer-local 'rainbow-delimiters--last-post-command-position) 0)
   (set (make-variable-buffer-local 'rainbow-delimiters--last-paren) '()))
