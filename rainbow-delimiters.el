@@ -42,7 +42,6 @@
 ;; - put it into your load directory
 ;; (add-to-list 'load-path "~/.emacs.d/xx/xx")
 ;; (add-hook 'prog-mode-hook #'rainbow-delimiters-mode)
-;; (add-hook 'prog-mode-hook #'rainbow-delimiters-emphasise-current-cursor-delimiters-mode)
 ;;
 ;;; Commentary:
 ;;
@@ -56,19 +55,24 @@
 ;; To start the mode automatically in most programming modes (Emacs 24 and
 ;; above):
 ;;   (add-hook 'prog-mode-hook #'rainbow-delimiters-mode)
-;;   (add-hook 'prog-mode-hook #'rainbow-delimiters-emphasise-current-cursor-delimiters-mode)
 ;; 
 ;;
 ;; Customization:
+;; 
+;; You can set your own rainbow colors use:
 ;;
-;; To customize various options, including the color theme:
+;;   (setq rainbow-delimiters-light-colors ["#xx" "#xx"])
+;;   (setq rainbow-delimiters-dark-colors ["#xx" "#xx"])
+;;
+;; You can also use customize-group to customize various options, including the color theme:
 ;;   M-x customize-group rainbow-delimiters
 ;;
 ;; You can specify custom colors by customizing following faces:
-;; - Faces take the form `rainbow-delimiters-depth-N-face', with N being the
-;;   depth. Depth begins at 1, the outermost color. Faces exist for depths 1-9.
-;; - The emphasise delimiters of current cursor take the form `rainbow-delimiters-inside-depth-N-face' face,
-;;   which share the same structure with `rainbow-delimiters-depth-N-face'
+;; - Colorized faces take the form `rainbow-delimiters-colorized-depth-N-face', with N being the
+;;   length of your colors vector.
+;; - You can toggle emphasise feature using `rainbow-delimiters-emphasise'.
+;; - Emphasised faces take the form `rainbow-delimiters-emphasise-depth-N-face', with N being the
+;;   length of your colors vector.
 ;; - The unmatched delimiter face: `rainbow-delimiters-unmatched-face'.
 ;; - The mismatched delimiter face: `rainbow-delimiters-mismatched-face'.
 
@@ -90,8 +94,18 @@ When depth exceeds innermost defined face, colors cycle back through."
   :link '(custom-group-link "rainbow-delimiters")
   :prefix "rainbow-delimiters-")
 
-(defcustom rainbow-delimiters-pick-face-function
-  #'rainbow-delimiters-default-pick-face
+(defvar rainbow-delimiters-light-colors
+  ["#707183" "#7388d6" "#909183" "#709870" "#907373"
+   "#6276ba" "#858580" "#80a880" "#887070"]
+  "light colors for rainbow delimiters")
+
+(defvar rainbow-delimiters-dark-colors
+  ["#c792ea" "#f78c6c" "#c3e88d" "#89DDFF" "#bb80b3"
+   "#ffcb6b" "#82aaff" "#44b9b1" "#80cbc4"]
+  "dark colors for rainbow delimiters")
+
+(defcustom rainbow-delimiters-colorize-pick-face-function
+  #'rainbow-delimiters-colorize-default-pick-face
   "The function used to pick a face used to highlight a delimiter.
 The function should take three arguments (DEPTH MATCH LOC), where:
   - DEPTH is the delimiter depth; when zero or negative, it's an unmatched
@@ -101,7 +115,20 @@ The function should take three arguments (DEPTH MATCH LOC), where:
 The function should return a value suitable to use as a value of the `face' text
 property, or nil, in which case the delimiter is not highlighted.
 The function should not move the point or mark or change the match data."
-  :tag "Pick face function"
+  :tag "Pick Colorize face function"
+  :type 'function
+  :group 'rainbow-delimiters)
+
+(defcustom rainbow-delimiters-emphasise-pick-face-function
+  #'rainbow-delimiters-emphasise-default-pick-face
+  "The function used to pick a face used to emphasise a delimiter of current cursor.
+The function should take three arguments (DEPTH), where:
+  - DEPTH is the delimiter depth; when zero or negative, it's an unmatched
+    delimiter.
+The function should return a value suitable to use as a value of the `face' text
+property, or nil, in which case the delimiter is not highlighted.
+The function should not move the point or mark or change the match data."
+  :tag "Pick Emphasise face function"
   :type 'function
   :group 'rainbow-delimiters)
 
@@ -125,11 +152,6 @@ The function should not move the point or mark or change the match data."
   '((default (:inherit rainbow-delimiters-unmatched-face)))
   "Face to highlight mismatched closing delimiters in."
   :group 'rainbow-delimiters-faces)
-
-
-(defvar rainbow-delimiters-enable-current-cursor-paren
-  nil
-  "This property is used to set whether to emphasise current cursor's paren")
 
 (defvar rainbow-delimiters--last-post-command-position 0
   "Holds the cursor position from the last run of post-command-hooks.")
@@ -173,25 +195,67 @@ The function should not move the point or mark or change the match data."
     )
   )
 
-(defun rainbow-delimiters--cache-last-paren (&optional force)
-  (defun helper (start end face)
-    (if (< start end)
-        (progn 
-          (rainbow-delimiters--remove-text-property start 'face nil)
-          (rainbow-delimiters--remove-text-property (- end 1) 'face nil)
-          (rainbow-delimiters--add-text-property start 'face face)
-          (rainbow-delimiters--add-text-property (- end 1) 'face face))))
+(defun rainbow-delimiters--match (a b)
+  (and a
+       b
+       (or
+        (and (eq a 40) (eq b 41))
+        (and (eq a 91) (eq b 93))
+        (and (eq a 123) (eq b 125))
+        )))
+
+(defun rainbow-delimiters--analysis (p)
+  "analysis point p"
+  (let* ((ppss (syntax-ppss p))
+         (depth (nth 0 ppss))
+         (cstart (nth 1 ppss))
+         (cend (if cstart
+                   (save-excursion
+                     (goto-char cstart)
+                     (ignore-errors (forward-list))
+                     (point))
+                 nil)))
+    (let ((matches-p (and
+                      depth
+                      cstart
+                      cend
+                      (rainbow-delimiters--match (char-after cstart) (char-after (1- cend))))))
+      (if matches-p
+          `(,p ,depth ,cstart ,cend)
+        '()))))
+
+(defun rainbow-delimiters--choose-delimiter (p)
+  "when both current and left exist delimiter, we choose the left" 
+  (save-excursion
+    (let ((current (rainbow-delimiters--analysis p))
+          (left (rainbow-delimiters--analysis (1- p)))
+          (right (rainbow-delimiters--analysis (1+ p))))
+      (cond ((and (cadr left)
+               (caddr left)
+               (cadddr left)
+               (= (1+ (car left)) (cadddr left)))
+             left)
+            ((and (cadr right)
+                  (caddr right)
+                  (cadddr right)
+                  (= (1- (car right)) (caddr right)))
+             right)
+            (t
+             current)))))
+
+(defun rainbow-delimiters--cancel-last-and-cache-now (&optional force)
+  (defun recover (start end face)
+    (progn 
+      (rainbow-delimiters--remove-text-property start 'face nil)
+      (rainbow-delimiters--remove-text-property (- end 1) 'face nil)
+      (rainbow-delimiters--add-text-property start 'face face)
+      (rainbow-delimiters--add-text-property (- end 1) 'face face)))
+  
   (with-silent-modifications
-    (let* ((cursor (point))
-           (ppss (syntax-ppss))
-           (depth (nth 0 ppss))
-           (cstart (nth 1 ppss))
-           (cend (if cstart
-                     (save-excursion
-                       (goto-char cstart)
-                       (ignore-errors (forward-list))
-                       (point))
-                   nil)))
+    (let* ((data (rainbow-delimiters--choose-delimiter (point)))
+           (depth (cadr data))
+           (cstart (caddr data))
+           (cend (cadddr data)))
       (let ((lopen
              (car rainbow-delimiters--last-paren))
             (lclose
@@ -202,36 +266,33 @@ The function should not move the point or mark or change the match data."
                (setq rainbow-delimiters--last-paren
                      `(,cstart ,cend
                                ,(get-text-property cstart 'face))))
-              ((and lopen lclose (or force (not cstart)))
-               (helper lopen lclose loface)
+              ((and lopen lclose force)
+               (recover lopen lclose loface)
+               (setq rainbow-delimiters--last-paren
+                     '()))
+              ((and lopen lclose (not cstart))
+               (recover lopen lclose loface)
                (setq rainbow-delimiters--last-paren
                      '()))
               ((and lopen lclose cstart (/= lopen cstart))
-               (helper lopen lclose loface)
+               (recover lopen lclose loface)
                (setq rainbow-delimiters--last-paren
                      `(,cstart ,cend
                                ,(get-text-property cstart 'face))))
               ((and lopen lclose cstart cend (/= lclose cend))
                (setcar (cdr rainbow-delimiters--last-paren)
-                       cend)))))))
+                       cend)
+               ))))))
 
 (defun rainbow-delimiters--highlight-current-cursor-paren ()
   (with-silent-modifications
-    (let* ((cursor (point))
-           (ppss (syntax-ppss))
-           (depth (nth 0 ppss))
-           (start (nth 1 ppss))
-           (end (if start
-                    (save-excursion
-                      (goto-char start)
-                      (ignore-errors (forward-list))
-                      (point))
-                  nil)))
-
-      (cond ((and depth start end (< start end))
+    (let* ((data (rainbow-delimiters--choose-delimiter (point)))
+           (depth (cadr data))
+           (start (caddr data))
+           (end (cadddr data)))
+      (cond ((and depth start end)
              (let ((face
-                    (funcall rainbow-delimiters-pick-face-function depth t cursor t))
-                   )
+                    (funcall rainbow-delimiters-emphasise-pick-face-function depth t)))
                (rainbow-delimiters--remove-text-property start 'face nil)
                (rainbow-delimiters--remove-text-property (- end 1) 'face nil)
                (rainbow-delimiters--add-text-property start 'face face)
@@ -240,32 +301,37 @@ The function should not move the point or mark or change the match data."
 (defun rainbow-delimiters--inside-this-parenthesis-event ()
   (do-stuff-if-moved-post-command
    (lambda ()
-     (rainbow-delimiters--cache-last-paren)
+     (rainbow-delimiters--cancel-last-and-cache-now)
      (rainbow-delimiters--highlight-current-cursor-paren)
      )))
+
+(defun rainbow-delimiters-max-face-count ()
+  (let ((type (frame-parameter nil 'background-mode)))
+    (if (equal type 'dark)
+        (length rainbow-delimiters-dark-colors)
+      (length rainbow-delimiters-light-colors))
+    ))
 
 (eval-when-compile
   (defmacro rainbow-delimiters--define-depth-faces ()
     (let ((faces '())
-          (light-colors ["#707183" "#7388d6" "#909183" "#709870" "#907373"
-                         "#6276ba" "#858580" "#80a880" "#887070"])
-          (dark-colors ["grey55" "#93a8c6" "#b0b1a3" "#97b098" "#aebed8"
-                        "#b0b0b3" "#90a890" "#a2b6da" "#9cb6ad"])
+          (light-colors rainbow-delimiters-light-colors)
+          (dark-colors rainbow-delimiters-dark-colors)
           )
-      (dotimes (i 9)
-        (push `(defface ,(intern (format "rainbow-delimiters-depth-%d-face" (1+ i)))
+      (dotimes (i (rainbow-delimiters-max-face-count))
+        (push `(defface ,(intern (format "rainbow-delimiters-colorize-depth-%d-face" (1+ i)))
                  '((default (:inherit rainbow-delimiters-base-face))
                    (((class color) (background light)) :foreground ,(aref light-colors i))
                    (((class color) (background dark)) :foreground ,(aref dark-colors i)))
-                 ,(format "Nested delimiter face, depth %d." (1+ i))
+                 ,(format "Nested delimiter face, used to colorize delimiters at depth %d." (1+ i))
                  :group 'rainbow-delimiters-faces)
               faces)
 
-        (push `(defface ,(intern (format "rainbow-delimiters-inside-depth-%d-face" (1+ i)))
+        (push `(defface ,(intern (format "rainbow-delimiters-emphasise-depth-%d-face" (1+ i)))
                  '((default (:inherit rainbow-delimiters-base-face))
                    (((class color) (background light)) :foreground ,(aref light-colors i) :height 1.2 :width normal :box (:line-width 1 :color "grey75"))
                    (((class color) (background dark)) :foreground ,(aref dark-colors i) :height 1.2 :width normal :box (:line-width 1 :color "grey75")))
-                 ,(format "Nested delimiter face, inside depth %d." (1+ i))
+                 ,(format "Nested delimiter face, used to emphasise delimiters at depth %d." (1+ i))
                  :group 'rainbow-delimiters-faces
                  )
               faces)
@@ -274,54 +340,73 @@ The function should not move the point or mark or change the match data."
 
 (rainbow-delimiters--define-depth-faces)
 
-(defcustom rainbow-delimiters-max-face-count 9
-  "Number of faces defined for highlighting delimiter levels.
-
-Determines depth at which to cycle through faces again.
-
-It's safe to change this variable provided that for all integers from 1 to the
-new value inclusive, a face `rainbow-delimiters-depth-N-face' is defined."
-  :type 'integer
-  :group 'rainbow-delimiters)
-
 (defcustom rainbow-delimiters-outermost-only-face-count 0
   "Number of faces to be used only for N outermost delimiter levels.
 
-This should be smaller than `rainbow-delimiters-max-face-count'."
+This should be smaller than length of `rainbow-delimiters-dark-colors' when it's dark background or
+length of `rainbow-delimiters-light-colors' when it's light background"
   :type 'integer
   :group 'rainbow-delimiters)
 
-(defun rainbow-delimiters-default-pick-face (depth match _loc &optional inside)
+(defcustom rainbow-delimiters-emphasise t 
+  "Whether emphasise delimiters of current cursor"
+  :type 'symbol
+  :group 'rainbow-delimiters)
+
+(defun rainbow-delimiters-colorize-default-pick-face (depth match _loc)
   "Return a face name appropriate for nesting depth DEPTH.
-DEPTH and MATCH are as in `rainbow-delimiters-pick-face-function'.
+DEPTH and MATCH are as in `rainbow-delimiters-colorize-pick-face-function'.
 
 The returned value is either `rainbow-delimiters-unmatched-face',
 `rainbow-delimiters-mismatched-face', or one of the
-`rainbow-delimiters-depth-N-face' or `rainbow-delimiters-inside-depth-N-face' faces, obeying
+`rainbow-delimiters-depth-N-face' faces, obeying
 `rainbow-delimiters-max-face-count' and
 `rainbow-delimiters-outermost-only-face-count'."
-  (cond
-   ((<= depth 0)
-    'rainbow-delimiters-unmatched-face)
-   ((not match)
-    'rainbow-delimiters-mismatched-face)
-   (t
+  (let ((max-face-count (rainbow-delimiters-max-face-count)))
+    (cond
+     ((<= depth 0)
+      'rainbow-delimiters-unmatched-face)
+     ((not match)
+      'rainbow-delimiters-mismatched-face)
+     (t
+      (intern-soft
+       (concat "rainbow-delimiters-colorize-depth-"
+               (number-to-string
+                (if (<= depth max-face-count)
+                    ;; Our nesting depth has a face defined for it.
+                    depth
+                  ;; Deeper than # of defined faces; cycle back through to
+                  ;; `rainbow-delimiters-outermost-only-face-count' + 1.
+                  ;; Return face # that corresponds to current nesting level.
+                  (+ 1 rainbow-delimiters-outermost-only-face-count
+                     (mod (- depth max-face-count 1)
+                          (- max-face-count
+                             rainbow-delimiters-outermost-only-face-count)))))
+               "-face"))))))
+
+(defun rainbow-delimiters-emphasise-default-pick-face (depth match)
+  "Return a face name appropriate for nesting depth DEPTH.
+DEPTH is as in `rainbow-delimiters-emphasise-pick-face-function'.
+
+The returned value is one of the
+`rainbow-delimiters-emphasise-depth-N-face' faces, obeying
+`rainbow-delimiters-max-face-count' and
+`rainbow-delimiters-outermost-only-face-count'."
+  (let ((max-face-count (rainbow-delimiters-max-face-count)))
     (intern-soft
-     (concat "rainbow-delimiters"
-             (if inside "-inside-" "-")
-             "depth-"
+     (concat "rainbow-delimiters-emphasise-depth-"
              (number-to-string
-              (if (<= depth rainbow-delimiters-max-face-count)
+              (if (<= depth max-face-count)
                   ;; Our nesting depth has a face defined for it.
                   depth
                 ;; Deeper than # of defined faces; cycle back through to
                 ;; `rainbow-delimiters-outermost-only-face-count' + 1.
                 ;; Return face # that corresponds to current nesting level.
                 (+ 1 rainbow-delimiters-outermost-only-face-count
-                   (mod (- depth rainbow-delimiters-max-face-count 1)
-                        (- rainbow-delimiters-max-face-count
+                   (mod (- depth max-face-count 1)
+                        (- max-face-count
                            rainbow-delimiters-outermost-only-face-count)))))
-             "-face")))))
+             "-face"))))
 
 (defun rainbow-delimiters--apply-color (loc depth match)
   "Highlight a single delimiter at LOC according to DEPTH.
@@ -331,22 +416,24 @@ DEPTH is the nested depth at LOC, which determines the face to use.
 MATCH is nil iff it's a mismatched closing delimiter."
 
   ;; if loc is in last-paren, then we use inside face to show it
-  (let ((inside (and rainbow-delimiters-enable-current-cursor-paren
+  (let ((inside (and rainbow-delimiters-emphasise
                      (or
                       (and (car rainbow-delimiters--last-paren)
                            (= loc (car rainbow-delimiters--last-paren)))
                       (and (cadr rainbow-delimiters--last-paren)
                            (= (1+ loc) (cadr rainbow-delimiters--last-paren)))))))
+    
     (let ((face
            (if inside
-               (funcall rainbow-delimiters-pick-face-function depth match loc t)
-             (funcall rainbow-delimiters-pick-face-function depth match loc))))
+               (funcall rainbow-delimiters-emphasise-pick-face-function depth match)
+             (funcall rainbow-delimiters-colorize-pick-face-function depth match loc))))
       (when face
         (if inside
-            (let ((giveyouface (funcall rainbow-delimiters-pick-face-function depth match loc)))
+            (let ((giveyouface (funcall rainbow-delimiters-colorize-pick-face-function depth match loc)))
               (when giveyouface
                 (setcar (cddr rainbow-delimiters--last-paren)
                         giveyouface))))
+        
         (rainbow-delimiters--add-text-property loc 'face face)))))
 
 (defun rainbow-delimiters--char-ineligible-p (loc ppss delim-syntax-code)
@@ -379,7 +466,6 @@ Returns t if char at loc meets one of the following conditions:
   "Highlight delimiters in region between point and END.
 
 Used by font-lock for dynamic highlighting."
-  
   (when (bound-and-true-p mmm-current-submode)
     ;; `mmm-mode' is weird and apparently needs this hack, because otherwise we
     ;; may end up thinking matched parentheses are mismatched.
@@ -408,12 +494,7 @@ Used by font-lock for dynamic highlighting."
              ((= 4 (logand #xFFFF delim-syntax-code))
               ;; The (1+ ...) is needed because `parse-partial-sexp' returns the
               ;; depth at the opening delimiter, not in the block being started.
-              (let ((end (save-excursion
-                           (goto-char delim-pos)
-                           (ignore-errors (forward-list))
-                           (point))))
-                (rainbow-delimiters--apply-color delim-pos (1+ (nth 0 ppss)) (/= delim-pos end)))
-              )
+              (rainbow-delimiters--apply-color delim-pos (1+ (nth 0 ppss)) t))
              
              ((= 5 (logand #xFFFF delim-syntax-code))
               ;; Not an opening delimiter, so it's a closing delimiter.
@@ -437,60 +518,52 @@ Used by font-lock for dynamic highlighting."
   :init-value nil
   :lighter "" ; No modeline lighter - it's already obvious when the mode is on.
   :keymap nil
-  (font-lock-remove-keywords nil rainbow-delimiters--font-lock-keywords)
+  (rainbow-delimiters-disable-colorize)
+  (when rainbow-delimiters-emphasise
+    (rainbow-delimiters-disable-emphasise))
+  
   (when rainbow-delimiters-mode
-    (font-lock-add-keywords nil rainbow-delimiters--font-lock-keywords 'append)
-    (set (make-local-variable 'jit-lock-contextually) t)
-    (when (or (bound-and-true-p syntax-begin-function)
-              (bound-and-true-p font-lock-beginning-of-syntax-function))
-      ;; We're going to modify `syntax-begin-function', so flush the cache to
-      ;; avoid getting cached values that used the old value.
-      (syntax-ppss-flush-cache 0))
-    ;; `syntax-begin-function' may break the assumption we rely on that
-    ;; `syntax-ppss' is exactly equivalent to `parse-partial-sexp' from
-    ;; `point-min'. Just don't use it, the performance hit should be negligible.
-    (when (boundp 'syntax-begin-function)
-      (set (make-local-variable 'syntax-begin-function) nil))
-    ;; Obsolete equivalent of `syntax-begin-function'.
-    (when (boundp 'font-lock-beginning-of-syntax-function)
-      (set (make-local-variable 'font-lock-beginning-of-syntax-function) nil)))
+    (rainbow-delimiters-enable-colorize)
+    (when rainbow-delimiters-emphasise
+      (rainbow-delimiters-enable-emphasise)))
   
   (when font-lock-mode
     (if (fboundp 'font-lock-flush)
         (font-lock-flush)
       (with-no-warnings (font-lock-fontify-buffer)))))
 
-(define-minor-mode rainbow-delimiters-emphasise-current-cursor-delimiters-mode 
-  "Highlight the delimiters of current cursor according to their depth."
-  :init-value nil
-  :lighter "" ; No modeline lighter - it's already obvious when the mode is on.
-  :keymap nil
+(defun rainbow-delimiters-enable-colorize ()
+  (font-lock-add-keywords nil rainbow-delimiters--font-lock-keywords 'append)
+  (set (make-local-variable 'jit-lock-contextually) t)
+  (when (or (bound-and-true-p syntax-begin-function)
+            (bound-and-true-p font-lock-beginning-of-syntax-function))
+    ;; We're going to modify `syntax-begin-function', so flush the cache to
+    ;; avoid getting cached values that used the old value.
+    (syntax-ppss-flush-cache 0))
+  ;; `syntax-begin-function' may break the assumption we rely on that
+  ;; `syntax-ppss' is exactly equivalent to `parse-partial-sexp' from
+  ;; `point-min'. Just don't use it, the performance hit should be negligible.
+  (when (boundp 'syntax-begin-function)
+    (set (make-local-variable 'syntax-begin-function) nil))
+  ;; Obsolete equivalent of `syntax-begin-function'.
+  (when (boundp 'font-lock-beginning-of-syntax-function)
+    (set (make-local-variable 'font-lock-beginning-of-syntax-function) nil)))
 
+(defun rainbow-delimiters-disable-colorize ()
+  (font-lock-remove-keywords nil rainbow-delimiters--font-lock-keywords))
+
+(defun rainbow-delimiters-enable-emphasise ()
+  (add-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event 0 t)
+  (rainbow-delimiters--cancel-last-and-cache-now)
+  (rainbow-delimiters--highlight-current-cursor-paren))
+
+(defun rainbow-delimiters-disable-emphasise ()
   (make-local-variable 'post-command-hook)
   (remove-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event t)
-  (rainbow-delimiters--cache-last-paren t)
+  (rainbow-delimiters--cancel-last-and-cache-now t)
 
-  (set
-   (make-variable-buffer-local 'rainbow-delimiters-enable-current-cursor-paren)
-   rainbow-delimiters-emphasise-current-cursor-delimiters-mode)
   (set (make-variable-buffer-local 'rainbow-delimiters--last-post-command-position) 0)
-  (set (make-variable-buffer-local 'rainbow-delimiters--last-paren) '())
-  
-  (when rainbow-delimiters-emphasise-current-cursor-delimiters-mode
-    (add-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event 0 t)
-    (rainbow-delimiters--cache-last-paren)
-    (rainbow-delimiters--highlight-current-cursor-paren)
-    ))
-
-;;;###autoload
-(defun rainbow-delimiters-mode-enable ()
-  "Enable `rainbow-delimiters-mode'."
-  (rainbow-delimiters-mode 1))
-
-;;;###autoload
-(defun rainbow-delimiters-mode-disable ()
-  "Disable `rainbow-delimiters-mode'."
-  (rainbow-delimiters-mode 0))
+  (set (make-variable-buffer-local 'rainbow-delimiters--last-paren) '()))
 
 (provide 'rainbow-delimiters)
 ;;; rainbow-delimiters.el ends here
