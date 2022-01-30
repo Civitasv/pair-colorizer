@@ -160,7 +160,9 @@ The function should not move the point or mark or change the match data."
   '())
 
 (defun do-stuff-if-moved-post-command (f)
-  (unless (equal (point) rainbow-delimiters--last-post-command-position)
+  (unless (or
+           (not font-lock-mode)
+           (equal (point) rainbow-delimiters--last-post-command-position))
     (funcall f))
   (setq rainbow-delimiters--last-post-command-position (point)))
 
@@ -191,9 +193,9 @@ The function should not move the point or mark or change the match data."
          `(,property ,value
                 front-sticky nil
                 rear-nonsticky t)
-         ))
+         )
     )
-  )
+  ))
 
 (defun rainbow-delimiters--match (a b)
   (and a
@@ -206,23 +208,25 @@ The function should not move the point or mark or change the match data."
 
 (defun rainbow-delimiters--analysis (p)
   "analysis point p"
-  (let* ((ppss (syntax-ppss p))
-         (depth (nth 0 ppss))
-         (cstart (nth 1 ppss))
-         (cend (if cstart
-                   (save-excursion
-                     (goto-char cstart)
-                     (ignore-errors (forward-list))
-                     (point))
-                 nil)))
-    (let ((matches-p (and
-                      depth
-                      cstart
-                      cend
-                      (rainbow-delimiters--match (char-after cstart) (char-after (1- cend))))))
-      (if matches-p
-          `(,p ,depth ,cstart ,cend)
-        '()))))
+  (when (and (>= p (point-min))
+             (<= p (point-max)))
+    (let* ((ppss (syntax-ppss p))
+           (depth (nth 0 ppss))
+           (cstart (nth 1 ppss))
+           (cend (if cstart
+                     (save-excursion
+                       (goto-char cstart)
+                       (ignore-errors (forward-list))
+                       (point))
+                   nil)))
+      (let ((matches-p (and
+                        depth
+                        cstart
+                        cend
+                        (rainbow-delimiters--match (char-after cstart) (char-after (1- cend))))))
+        (if matches-p
+            `(,p ,depth ,cstart ,cend)
+          '())))))
 
 (defun rainbow-delimiters--choose-delimiter (p)
   "when both current and left exist delimiter, we choose the left" 
@@ -231,9 +235,9 @@ The function should not move the point or mark or change the match data."
           (left (rainbow-delimiters--analysis (1- p)))
           (right (rainbow-delimiters--analysis (1+ p))))
       (cond ((and (cadr left)
-               (caddr left)
-               (cadddr left)
-               (= (1+ (car left)) (cadddr left)))
+                  (caddr left)
+                  (cadddr left)
+                  (= (1+ (car left)) (cadddr left)))
              left)
             ((and (cadr right)
                   (caddr right)
@@ -417,7 +421,6 @@ MATCH is nil iff it's a mismatched closing delimiter."
                            (= loc (car rainbow-delimiters--last-paren)))
                       (and (cadr rainbow-delimiters--last-paren)
                            (= (1+ loc) (cadr rainbow-delimiters--last-paren)))))))
-    
     (let ((face
            (if inside
                (funcall rainbow-delimiters-emphasise-pick-face-function depth match)
@@ -528,7 +531,7 @@ Used by font-lock for dynamic highlighting."
       (with-no-warnings (font-lock-fontify-buffer)))))
 
 (defun rainbow-delimiters-enable-colorize ()
-  (font-lock-add-keywords nil rainbow-delimiters--font-lock-keywords 'append)
+  (font-lock-add-keywords nil rainbow-delimiters--font-lock-keywords 'append) 
   (set (make-local-variable 'jit-lock-contextually) t)
   (when (or (bound-and-true-p syntax-begin-function)
             (bound-and-true-p font-lock-beginning-of-syntax-function))
@@ -552,7 +555,6 @@ Used by font-lock for dynamic highlighting."
 
 (defun rainbow-delimiters-disable-emphasise ()
   (remove-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event t)
-
   (set (make-local-variable 'rainbow-delimiters--last-post-command-position) 0)
   (set (make-local-variable 'rainbow-delimiters--last-paren) '()))
 
