@@ -153,18 +153,12 @@ The function should not move the point or mark or change the match data."
   "Face to highlight mismatched closing delimiters in."
   :group 'rainbow-delimiters-faces)
 
-(defvar rainbow-delimiters--last-post-command-position 0
-  "Holds the cursor position from the last run of post-command-hooks.")
-
 (defvar rainbow-delimiters--last-paren
   '())
 
 (defun do-stuff-if-moved-post-command (f)
-  (unless (or
-           (not font-lock-mode)
-           (equal (point) rainbow-delimiters--last-post-command-position))
-    (funcall f))
-  (setq rainbow-delimiters--last-post-command-position (point)))
+  (unless (not font-lock-mode)
+    (funcall f)))
 
 (defun rainbow-delimiters--remove-text-property (pos property value)
   (if (and
@@ -217,13 +211,13 @@ The function should not move the point or mark or change the match data."
                      (save-excursion
                        (goto-char cstart)
                        (ignore-errors (forward-list))
-                       (point))
+                       (1- (point)))
                    nil)))
       (let ((matches-p (and
                         depth
                         cstart
                         cend
-                        (rainbow-delimiters--match (char-after cstart) (char-after (1- cend))))))
+                        (rainbow-delimiters--match (char-after cstart) (char-after cend)))))
         (if matches-p
             `(,p ,depth ,cstart ,cend)
           '())))))
@@ -234,10 +228,17 @@ The function should not move the point or mark or change the match data."
     (let ((current (rainbow-delimiters--analysis p))
           (left (rainbow-delimiters--analysis (1- p)))
           (right (rainbow-delimiters--analysis (1+ p))))
-      (cond ((and (cadr left)
-                  (caddr left)
-                  (cadddr left)
-                  (= (1+ (car left)) (cadddr left)))
+      (cond ((and (cadr current)
+                  (caddr current)
+                  (cadddr current)
+                  (or (= (car current) (caddr current))
+                      (= (car current) (cadddr current))))
+             current)
+             ((and (cadr left)
+                   (caddr left)
+                   (cadddr left)
+                   (or (= (car left) (caddr left))
+                       (= (car left) (cadddr left))))
              left)
             ((and (cadr right)
                   (caddr right)
@@ -249,11 +250,15 @@ The function should not move the point or mark or change the match data."
 
 (defun rainbow-delimiters--cancel-last-and-cache-now ()
   (defun recover (start end face)
-    (rainbow-delimiters--remove-text-property start 'face nil)
-    (rainbow-delimiters--remove-text-property (- end 1) 'face nil)
-    (rainbow-delimiters--add-text-property start 'face face)
-    (rainbow-delimiters--add-text-property (- end 1) 'face face))
-  
+    (let ((matches (rainbow-delimiters--match (char-after start) (char-after end))))
+      (when matches
+        ;; (message "`%d'" start)
+        ;; (message "`%d'" end)
+        (rainbow-delimiters--remove-text-property start 'face nil)
+        (rainbow-delimiters--remove-text-property end 'face nil)
+        (rainbow-delimiters--add-text-property start 'face face)
+        (rainbow-delimiters--add-text-property end 'face face))))
+ 
   (with-silent-modifications
     (let ((lopen
            (car rainbow-delimiters--last-paren))
@@ -265,20 +270,25 @@ The function should not move the point or mark or change the match data."
              (depth (cadr data))
              (cstart (caddr data))
              (cend (cadddr data)))
+        
         (cond ((and cstart cend (or (not lopen) (not lclose)))
+               ;; (message "first")
                (setq rainbow-delimiters--last-paren
                      `(,cstart ,cend
                                ,(get-text-property cstart 'face))))
               ((and lopen lclose (not cstart))
+               ;; (message "second")
                (recover lopen lclose loface)
                (setq rainbow-delimiters--last-paren
                      '()))
               ((and lopen lclose cstart (/= lopen cstart))
+               ;; (message "third")
                (recover lopen lclose loface)
                (setq rainbow-delimiters--last-paren
                      `(,cstart ,cend
                                ,(get-text-property cstart 'face))))
               ((and lopen lclose cstart cend (/= lclose cend))
+               ;; (message "fourth")
                (setcar (cdr rainbow-delimiters--last-paren)
                        cend)
                ))))))
@@ -293,9 +303,9 @@ The function should not move the point or mark or change the match data."
              (let ((face
                     (funcall rainbow-delimiters-emphasise-pick-face-function depth t)))
                (rainbow-delimiters--remove-text-property start 'face nil)
-               (rainbow-delimiters--remove-text-property (- end 1) 'face nil)
+               (rainbow-delimiters--remove-text-property end 'face nil)
                (rainbow-delimiters--add-text-property start 'face face)
-               (rainbow-delimiters--add-text-property (- end 1) 'face face)))))))
+               (rainbow-delimiters--add-text-property end 'face face)))))))
 
 (defun rainbow-delimiters--inside-this-parenthesis-event ()
   (do-stuff-if-moved-post-command
@@ -317,6 +327,7 @@ The function should not move the point or mark or change the match data."
           (light-colors rainbow-delimiters-light-colors)
           (dark-colors rainbow-delimiters-dark-colors)
           )
+      
       (dotimes (i (rainbow-delimiters-max-face-count))
         (push `(defface ,(intern (format "rainbow-delimiters-colorize-depth-%d-face" (1+ i)))
                  '((default (:inherit rainbow-delimiters-base-face))
@@ -328,8 +339,8 @@ The function should not move the point or mark or change the match data."
 
         (push `(defface ,(intern (format "rainbow-delimiters-emphasise-depth-%d-face" (1+ i)))
                  '((default (:inherit rainbow-delimiters-base-face))
-                   (((class color) (background light)) :foreground ,(aref light-colors i) :height 1.2 :width normal :box (:line-width 1 :color "grey75"))
-                   (((class color) (background dark)) :foreground ,(aref dark-colors i) :height 1.2 :width normal :box (:line-width 1 :color "grey75")))
+                   (((class color) (background light)) :foreground ,(aref light-colors i) :height 1.0 :width normal :box (:line-width 1 :color "grey75"))
+                   (((class color) (background dark)) :foreground ,(aref dark-colors i) :height 1.0 :width normal :box (:line-width 1 :color "grey75")))
                  ,(format "Nested delimiter face, used to emphasise delimiters at depth %d." (1+ i))
                  :group 'rainbow-delimiters-faces
                  )
@@ -347,7 +358,7 @@ length of `rainbow-delimiters-light-colors' when it's light background"
   :type 'integer
   :group 'rainbow-delimiters)
 
-(defcustom rainbow-delimiters-emphasise t 
+(defcustom rainbow-delimiters-emphasise nil
   "Whether emphasise delimiters of current cursor"
   :type 'symbol
   :group 'rainbow-delimiters)
@@ -406,7 +417,7 @@ The returned value is one of the
                         (- max-face-count
                            rainbow-delimiters-outermost-only-face-count)))))
              "-face"))))
-
+ 
 (defun rainbow-delimiters--apply-color (loc depth match)
   "Highlight a single delimiter at LOC according to DEPTH.
 
@@ -420,10 +431,10 @@ MATCH is nil iff it's a mismatched closing delimiter."
                       (and (car rainbow-delimiters--last-paren)
                            (= loc (car rainbow-delimiters--last-paren)))
                       (and (cadr rainbow-delimiters--last-paren)
-                           (= (1+ loc) (cadr rainbow-delimiters--last-paren)))))))
+                           (= loc (cadr rainbow-delimiters--last-paren)))))))
     (let ((face
            (if inside
-               (funcall rainbow-delimiters-emphasise-pick-face-function depth match)
+               (funcall rainbow-delimiters-emphasise-pick-face-function depth match) 
              (funcall rainbow-delimiters-colorize-pick-face-function depth match loc))))
       (when face
         (if inside
@@ -555,7 +566,6 @@ Used by font-lock for dynamic highlighting."
 
 (defun rainbow-delimiters-disable-emphasise ()
   (remove-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event t)
-  (set (make-local-variable 'rainbow-delimiters--last-post-command-position) 0)
   (set (make-local-variable 'rainbow-delimiters--last-paren) '()))
 
 (provide 'rainbow-delimiters)
