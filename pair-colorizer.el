@@ -1,9 +1,9 @@
-;;; rainbow-delimiters.el --- Highlight brackets according to their depth -*- lexical-binding: t -*-
+;;; pair-colorizer.el --- Highlight brackets according to their depth-*- lexical-binding: t -*-
 
 ;; Author: Civitasv <hscivitasv@gmail.com>
-;; Homepage: https://github.com/Civitasv/rainbow-delimiters
-;; Version: 0.0.1-alpha
-;; Keywords: faces, convenience, lisp, tools, delimiters
+;; Homepage: https://github.com/Civitasv/pair-colorizer
+;; Version: 1.0.0
+;; Keywords: faces, convenience, lisp, tools, pair, colorizer
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -34,78 +34,80 @@
 
 ;;; Installation:
 
-;; Currently, this tool is in alpha state, maybe it's not perfect,
-;; so I don't upload it to Melpa or elpa, but when it is, I will.
-;; 
+;; You can install it use `package-install'
+;;   M-x package-install <RET> pair-colorizer
+;; Alternatively, you can use use-package
+;;   (use-package pair-colorizer)
+;;
 ;; You can install it manually, steps:
-;; - download rainbow-delimiters.el
+;; - download pair-colorizer.el
 ;; - put it into your load directory
 ;; (add-to-list 'load-path "~/.emacs.d/xx/xx")
-;; (add-hook 'prog-mode-hook #'rainbow-delimiters-mode)
+;; (add-hook 'prog-mode-hook #'colorize-pair-mode)
 ;;
 ;;; Commentary:
 ;;
 ;; Usage:
 ;;
 ;; To toggle the mode in the current buffer:
-;;   M-x rainbow-delimiters-mode
+;;   M-x colorize-pair-mode
 ;; To start the mode automatically in `foo-mode', add the following to your init
 ;; file:
-;;   (add-hook 'foo-mode-hook #'rainbow-delimiters-mode)
+;;   (add-hook 'foo-mode-hook #'colorize-pair-mode)
 ;; To start the mode automatically in most programming modes (Emacs 24 and
 ;; above):
-;;   (add-hook 'prog-mode-hook #'rainbow-delimiters-mode)
+;;   (add-hook 'prog-mode-hook #'colorize-pair-mode)
 ;; 
 ;;
 ;; Customization:
 ;; 
-;; You can set your own rainbow colors use:
+;; You can set your own colorizer colors use:
 ;;
-;;   (setq rainbow-delimiters-light-colors ["#xx" "#xx"])
-;;   (setq rainbow-delimiters-dark-colors ["#xx" "#xx"])
+;;   (setq pair-colorizer-light-colors ["#xx" "#xx"])
+;;   (setq pair-colorizer-dark-colors ["#xx" "#xx"])
 ;;
 ;; You can also use customize-group to customize various options, including the color theme:
-;;   M-x customize-group rainbow-delimiters
+;;   M-x customize-group pair-colorizer
 ;;
 ;; You can specify custom colors by customizing following faces:
-;; - Colorized faces take the form `rainbow-delimiters-colorized-depth-N-face', with N being the
+;; - Colorized faces take the form `pair-colorizer-depth-N-face', with N being the
 ;;   length of your colors vector.
-;; - You can toggle emphasise feature using `rainbow-delimiters-emphasise'.
-;; - Emphasised faces take the form `rainbow-delimiters-emphasise-depth-N-face', with N being the
+;; - You can toggle emphasise feature using `pair-colorizer-emphasise'.
+;; - Emphasised faces take the form `pair-colorizer-emphasise-depth-N-face', with N being the
 ;;   length of your colors vector.
-;; - The unmatched delimiter face: `rainbow-delimiters-unmatched-face'.
-;; - The mismatched delimiter face: `rainbow-delimiters-mismatched-face'.
+;; - The unmatched pair face: `pair-colorizer-unmatched-face'.
+;; - The mismatched pair face: `pair-colorizer-mismatched-face'.
 
 ;;; Code:
 
-(defgroup rainbow-delimiters nil
+(defgroup pair-colorizer nil
   "Highlight nested parentheses, brackets, and braces according to their depth."
-  :prefix "rainbow-delimiters-"
-  :link '(url-link :tag "Website for rainbow-delimiters"
-                   "https://github.com/Civitasv/rainbow-delimiters")
+  :prefix "pair-colorizer-"
+  :link '(url-link :tag "Website for pair-colorizer"
+                   "https://github.com/Civitasv/pair-colorizer")
   :group 'applications)
 
-(defgroup rainbow-delimiters-faces nil
-  "Faces for successively nested pairs of delimiters.
+(defgroup pair-colorizer-faces nil
+ "Faces for successively nested pairs of delimiters.
 
 When depth exceeds innermost defined face, colors cycle back through."
-  :group 'rainbow-delimiters
+  :group 'pair-colorizer
   :group 'faces
-  :link '(custom-group-link "rainbow-delimiters")
-  :prefix "rainbow-delimiters-")
+  :link '(custom-group-link "pair-colorizer")
+  :prefix "pair-colorizer-")
 
-(defvar rainbow-delimiters-light-colors
+(defvar pair-colorizer-light-colors
   ["#707183" "#7388d6" "#909183" "#709870" "#907373"
    "#6276ba" "#858580" "#80a880" "#887070"]
-  "light colors for rainbow delimiters")
+  "light colors used to colorize pairs")
 
-(defvar rainbow-delimiters-dark-colors
+(defvar pair-colorizer-dark-colors
   ["#c792ea" "#f78c6c" "#c3e88d" "#89DDFF" "#bb80b3"
    "#ffcb6b" "#82aaff" "#44b9b1" "#80cbc4"]
-  "dark colors for rainbow delimiters")
+  "dark colors used to colorize pairs")
 
-(defcustom rainbow-delimiters-colorize-pick-face-function
-  #'rainbow-delimiters-colorize-default-pick-face
+(defcustom pair-colorizer-pick-face-function
+  #'pair-colorizer-default-pick-face
   "The function used to pick a face used to highlight a delimiter.
 The function should take three arguments (DEPTH MATCH LOC), where:
   - DEPTH is the delimiter depth; when zero or negative, it's an unmatched
@@ -117,50 +119,52 @@ property, or nil, in which case the delimiter is not highlighted.
 The function should not move the point or mark or change the match data."
   :tag "Pick Colorize face function"
   :type 'function
-  :group 'rainbow-delimiters)
+  :group 'pair-colorizer)
 
-(defcustom rainbow-delimiters-emphasise-pick-face-function
-  #'rainbow-delimiters-emphasise-default-pick-face
+(defcustom pair-colorizer-emphasise-pick-face-function
+  #'pair-colorizer-emphasise-default-pick-face
   "The function used to pick a face used to emphasise a delimiter of current cursor.
-The function should take three arguments (DEPTH), where:
+The function should take three arguments (DEPTH MATCH LOC), where:
   - DEPTH is the delimiter depth; when zero or negative, it's an unmatched
-    delimiter.
+    delimiter
+  - MATCH is nil iff the delimiter is a mismatched closing delimiter.
+  - LOC is the location of the delimiter.
 The function should return a value suitable to use as a value of the `face' text
-property, or nil, in which case the delimiter is not highlighted.
+property, or nil, in which case the delimiter is not emphasised.
 The function should not move the point or mark or change the match data."
   :tag "Pick Emphasise face function"
   :type 'function
-  :group 'rainbow-delimiters)
+  :group 'pair-colorizer)
 
-(defface rainbow-delimiters-base-face
+(defface pair-colorizer-base-face
   '((default (:inherit unspecified)))
-  "Face inherited by all other rainbow-delimiter faces."
-  :group 'rainbow-delimiters-faces)
+  "Face inherited by all other pair-colorizer faces."
+  :group 'pair-colorizer-faces)
 
-(defface rainbow-delimiters-base-error-face
-  '((default (:inherit rainbow-delimiters-base-face))
+(defface pair-colorizer-base-error-face
+  '((default (:inherit pair-colorizer-base-face))
     (t (:foreground "#88090B")))
-  "Face inherited by all other rainbow-delimiter error faces."
-  :group 'rainbow-delimiters-faces)
+  "Face inherited by all other pair-colorizer error faces."
+  :group 'pair-colorizer-faces)
 
-(defface rainbow-delimiters-unmatched-face
-  '((default (:inherit rainbow-delimiters-base-error-face)))
+(defface pair-colorizer-unmatched-face
+  '((default (:inherit pair-colorizer-base-error-face)))
   "Face to highlight unmatched closing delimiters in."
-  :group 'rainbow-delimiters-faces)
+  :group 'pair-colorizer-faces)
 
-(defface rainbow-delimiters-mismatched-face
-  '((default (:inherit rainbow-delimiters-unmatched-face)))
+(defface pair-colorizer-mismatched-face
+  '((default (:inherit pair-colorizer-unmatched-face)))
   "Face to highlight mismatched closing delimiters in."
-  :group 'rainbow-delimiters-faces)
+  :group 'pair-colorizer-faces)
 
-(defvar rainbow-delimiters--last-paren
+(defvar pair-colorizer--last-paren
   '())
 
-(defun do-stuff-if-moved-post-command (f)
+(defun do-stuff-if-in-font-lock-mode (f)
   (unless (not font-lock-mode)
     (funcall f)))
 
-(defun rainbow-delimiters--remove-text-property (pos property value)
+(defun pair-colorizer-remove-text-property (pos property value)
   (if (and
        (<= (1+ pos) (point-max))
        (>= pos (point-min)))
@@ -175,7 +179,7 @@ The function should not move the point or mark or change the match data."
     )
   )
 
-(defun rainbow-delimiters--add-text-property (pos property value)
+(defun pair-colorizer-add-text-property (pos property value)
   (if (and
        (<= (1+ pos) (point-max))
        (>= pos (point-min)))
@@ -191,7 +195,7 @@ The function should not move the point or mark or change the match data."
     )
   ))
 
-(defun rainbow-delimiters--match (a b)
+(defun pair-colorizer-match (a b)
   (and a
        b
        (or
@@ -200,8 +204,8 @@ The function should not move the point or mark or change the match data."
         (and (eq a 123) (eq b 125))
         )))
 
-(defun rainbow-delimiters--analysis (p)
-  "analysis point p"
+(defun pair-colorizer-analysis (p)
+  "analysis point p, return current point, depth, start pair point, end pair point"
   (when (and (>= p (point-min))
              (<= p (point-max)))
     (let* ((ppss (syntax-ppss p))
@@ -217,17 +221,17 @@ The function should not move the point or mark or change the match data."
                         depth
                         cstart
                         cend
-                        (rainbow-delimiters--match (char-after cstart) (char-after cend)))))
+                        (pair-colorizer-match (char-after cstart) (char-after cend)))))
         (if matches-p
             `(,p ,depth ,cstart ,cend)
           '())))))
 
-(defun rainbow-delimiters--choose-delimiter (p)
-  "when both current and left exist delimiter, we choose the left" 
+(defun pair-colorizer-choose-delimiter (p)
+  "Always choose delimiter from current cursor" 
   (save-excursion
-    (let ((current (rainbow-delimiters--analysis p))
-          (left (rainbow-delimiters--analysis (1- p)))
-          (right (rainbow-delimiters--analysis (1+ p))))
+    (let ((current (pair-colorizer-analysis p))
+          (left (pair-colorizer-analysis (1- p)))
+          (right (pair-colorizer-analysis (1+ p))))
       (cond ((and (cadr current)
                   (caddr current)
                   (cadddr current)
@@ -248,177 +252,177 @@ The function should not move the point or mark or change the match data."
             (t
              current)))))
 
-(defun rainbow-delimiters--cancel-last-and-cache-now ()
+(defun pair-colorizer-cancel-last-and-cache-now ()
   (defun recover (start end face)
-    (let ((matches (rainbow-delimiters--match (char-after start) (char-after end))))
+    (let ((matches (pair-colorizer-match (char-after start) (char-after end))))
       (when matches
         ;; (message "`%d'" start)
         ;; (message "`%d'" end)
-        (rainbow-delimiters--remove-text-property start 'face nil)
-        (rainbow-delimiters--remove-text-property end 'face nil)
-        (rainbow-delimiters--add-text-property start 'face face)
-        (rainbow-delimiters--add-text-property end 'face face))))
+        (pair-colorizer-remove-text-property start 'face nil)
+        (pair-colorizer-remove-text-property end 'face nil)
+        (pair-colorizer-add-text-property start 'face face)
+        (pair-colorizer-add-text-property end 'face face))))
  
   (with-silent-modifications
     (let ((lopen
-           (car rainbow-delimiters--last-paren))
+           (car pair-colorizer-last-paren))
           (lclose
-           (cadr rainbow-delimiters--last-paren))
+           (cadr pair-colorizer-last-paren))
           (loface
-           (caddr rainbow-delimiters--last-paren)))
-      (let* ((data (rainbow-delimiters--choose-delimiter (point)))
+           (caddr pair-colorizer-last-paren)))
+      (let* ((data (pair-colorizer-choose-delimiter (point)))
              (depth (cadr data))
              (cstart (caddr data))
              (cend (cadddr data)))
         
         (cond ((and cstart cend (or (not lopen) (not lclose)))
                ;; (message "first")
-               (setq rainbow-delimiters--last-paren
+               (setq pair-colorizer-last-paren
                      `(,cstart ,cend
                                ,(get-text-property cstart 'face))))
               ((and lopen lclose (not cstart))
                ;; (message "second")
                (recover lopen lclose loface)
-               (setq rainbow-delimiters--last-paren
+               (setq pair-colorizer-last-paren
                      '()))
               ((and lopen lclose cstart (/= lopen cstart))
                ;; (message "third")
                (recover lopen lclose loface)
-               (setq rainbow-delimiters--last-paren
+               (setq pair-colorizer-last-paren
                      `(,cstart ,cend
                                ,(get-text-property cstart 'face))))
               ((and lopen lclose cstart cend (/= lclose cend))
                ;; (message "fourth")
-               (setcar (cdr rainbow-delimiters--last-paren)
+               (setcar (cdr pair-colorizer-last-paren)
                        cend)
                ))))))
 
-(defun rainbow-delimiters--highlight-current-cursor-paren ()
+(defun pair-colorizer-highlight-current-cursor-paren ()
   (with-silent-modifications
-    (let* ((data (rainbow-delimiters--choose-delimiter (point)))
+    (let* ((data (pair-colorizer-choose-delimiter (point)))
            (depth (cadr data))
            (start (caddr data))
            (end (cadddr data)))
       (cond ((and depth start end)
              (let ((face
-                    (funcall rainbow-delimiters-emphasise-pick-face-function depth t)))
-               (rainbow-delimiters--remove-text-property start 'face nil)
-               (rainbow-delimiters--remove-text-property end 'face nil)
-               (rainbow-delimiters--add-text-property start 'face face)
-               (rainbow-delimiters--add-text-property end 'face face)))))))
+                    (funcall pair-colorizer-emphasise-pick-face-function depth t nil)))
+               (pair-colorizer-remove-text-property start 'face nil)
+               (pair-colorizer-remove-text-property end 'face nil)
+               (pair-colorizer-add-text-property start 'face face)
+               (pair-colorizer-add-text-property end 'face face)))))))
 
-(defun rainbow-delimiters--inside-this-parenthesis-event ()
-  (do-stuff-if-moved-post-command
+(defun pair-colorizer-inside-this-parenthesis-event ()
+  (do-stuff-if-in-font-lock-mode
    (lambda ()
-     (rainbow-delimiters--cancel-last-and-cache-now)
-     (rainbow-delimiters--highlight-current-cursor-paren)
+     (pair-colorizer-cancel-last-and-cache-now)
+     (pair-colorizer-highlight-current-cursor-paren)
      )))
 
-(defun rainbow-delimiters-max-face-count ()
+(defun pair-colorizer-max-face-count ()
   (let ((type (frame-parameter nil 'background-mode)))
     (if (equal type 'dark)
-        (length rainbow-delimiters-dark-colors)
-      (length rainbow-delimiters-light-colors))
+        (length pair-colorizer-dark-colors)
+      (length pair-colorizer-light-colors))
     ))
 
 (eval-when-compile
-  (defmacro rainbow-delimiters--define-depth-faces ()
+  (defmacro pair-colorizer-define-depth-faces ()
     (let ((faces '())
-          (light-colors rainbow-delimiters-light-colors)
-          (dark-colors rainbow-delimiters-dark-colors)
+          (light-colors pair-colorizer-light-colors)
+          (dark-colors pair-colorizer-dark-colors)
           )
       
-      (dotimes (i (rainbow-delimiters-max-face-count))
-        (push `(defface ,(intern (format "rainbow-delimiters-colorize-depth-%d-face" (1+ i)))
-                 '((default (:inherit rainbow-delimiters-base-face))
+      (dotimes (i (pair-colorizer-max-face-count))
+        (push `(defface ,(intern (format "pair-colorizer-colorize-depth-%d-face" (1+ i)))
+                 '((default (:inherit pair-colorizer-base-face))
                    (((class color) (background light)) :foreground ,(aref light-colors i))
                    (((class color) (background dark)) :foreground ,(aref dark-colors i)))
                  ,(format "Nested delimiter face, used to colorize delimiters at depth %d." (1+ i))
-                 :group 'rainbow-delimiters-faces)
+                 :group 'pair-colorizer-faces)
               faces)
 
-        (push `(defface ,(intern (format "rainbow-delimiters-emphasise-depth-%d-face" (1+ i)))
-                 '((default (:inherit rainbow-delimiters-base-face))
+        (push `(defface ,(intern (format "pair-colorizer-emphasise-depth-%d-face" (1+ i)))
+                 '((default (:inherit pair-colorizer-base-face))
                    (((class color) (background light)) :foreground ,(aref light-colors i) :height 1.0 :width normal :box (:line-width 1 :color "grey75"))
                    (((class color) (background dark)) :foreground ,(aref dark-colors i) :height 1.0 :width normal :box (:line-width 1 :color "grey75")))
                  ,(format "Nested delimiter face, used to emphasise delimiters at depth %d." (1+ i))
-                 :group 'rainbow-delimiters-faces
+                 :group 'pair-colorizer-faces
                  )
               faces)
         )
       `(progn ,@faces))))
 
-(rainbow-delimiters--define-depth-faces)
+(pair-colorizer-define-depth-faces)
 
-(defcustom rainbow-delimiters-outermost-only-face-count 0
+(defcustom pair-colorizer-outermost-only-face-count 0
   "Number of faces to be used only for N outermost delimiter levels.
 
-This should be smaller than length of `rainbow-delimiters-dark-colors' when it's dark background or
-length of `rainbow-delimiters-light-colors' when it's light background"
+This should be smaller than length of `pair-colorizer-dark-colors' when it's dark background or
+length of `pair-colorizer-light-colors' when it's light background"
   :type 'integer
-  :group 'rainbow-delimiters)
+  :group 'pair-colorizer)
 
-(defcustom rainbow-delimiters-emphasise nil
+(defcustom pair-colorizer-emphasise nil
   "Whether emphasise delimiters of current cursor"
   :type 'symbol
-  :group 'rainbow-delimiters)
+  :group 'pair-colorizer)
 
-(defun rainbow-delimiters-colorize-default-pick-face (depth match _loc)
+(defun pair-colorizer-default-pick-face (depth match _loc)
   "Return a face name appropriate for nesting depth DEPTH.
-DEPTH and MATCH are as in `rainbow-delimiters-colorize-pick-face-function'.
+DEPTH and MATCH are as in `pair-colorizer-pick-face-function'.
 
-The returned value is either `rainbow-delimiters-unmatched-face',
-`rainbow-delimiters-mismatched-face', or one of the
-`rainbow-delimiters-depth-N-face' faces, obeying
-`rainbow-delimiters-max-face-count' and
-`rainbow-delimiters-outermost-only-face-count'."
-  (let ((max-face-count (rainbow-delimiters-max-face-count)))
+The returned value is either `pair-colorizer-unmatched-face',
+`pair-colorizer-mismatched-face', or one of the
+`pair-colorizer-depth-N-face' faces, obeying
+`pair-colorizer-max-face-count' and
+`pair-colorizer-outermost-only-face-count'."
+  (let ((max-face-count (pair-colorizer-max-face-count)))
     (cond
      ((<= depth 0)
-      'rainbow-delimiters-unmatched-face)
+      'pair-colorizer-unmatched-face)
      ((not match)
-      'rainbow-delimiters-mismatched-face)
+      'pair-colorizer-mismatched-face)
      (t
       (intern-soft
-       (concat "rainbow-delimiters-colorize-depth-"
+       (concat "pair-colorizer-colorize-depth-"
                (number-to-string
                 (if (<= depth max-face-count)
                     ;; Our nesting depth has a face defined for it.
                     depth
                   ;; Deeper than # of defined faces; cycle back through to
-                  ;; `rainbow-delimiters-outermost-only-face-count' + 1.
+                  ;; `pair-colorizer-outermost-only-face-count' + 1.
                   ;; Return face # that corresponds to current nesting level.
-                  (+ 1 rainbow-delimiters-outermost-only-face-count
+                  (+ 1 pair-colorizer-outermost-only-face-count
                      (mod (- depth max-face-count 1)
                           (- max-face-count
-                             rainbow-delimiters-outermost-only-face-count)))))
+                             pair-colorizer-outermost-only-face-count)))))
                "-face"))))))
 
-(defun rainbow-delimiters-emphasise-default-pick-face (depth match)
+(defun pair-colorizer-emphasise-default-pick-face (depth _match _loc)
   "Return a face name appropriate for nesting depth DEPTH.
-DEPTH is as in `rainbow-delimiters-emphasise-pick-face-function'.
+DEPTH is as in `pair-colorizer-emphasise-pick-face-function'.
 
 The returned value is one of the
-`rainbow-delimiters-emphasise-depth-N-face' faces, obeying
-`rainbow-delimiters-max-face-count' and
-`rainbow-delimiters-outermost-only-face-count'."
-  (let ((max-face-count (rainbow-delimiters-max-face-count)))
+`pair-colorizer-emphasise-depth-N-face' faces, obeying
+`pair-colorizer-max-face-count' and
+`pair-colorizer-outermost-only-face-count'."
+  (let ((max-face-count (pair-colorizer-max-face-count)))
     (intern-soft
-     (concat "rainbow-delimiters-emphasise-depth-"
+     (concat "pair-colorizer-emphasise-depth-"
              (number-to-string
               (if (<= depth max-face-count)
                   ;; Our nesting depth has a face defined for it.
                   depth
                 ;; Deeper than # of defined faces; cycle back through to
-                ;; `rainbow-delimiters-outermost-only-face-count' + 1.
+                ;; `pair-colorizer-outermost-only-face-count' + 1.
                 ;; Return face # that corresponds to current nesting level.
-                (+ 1 rainbow-delimiters-outermost-only-face-count
+                (+ 1 pair-colorizer-outermost-only-face-count
                    (mod (- depth max-face-count 1)
                         (- max-face-count
-                           rainbow-delimiters-outermost-only-face-count)))))
+                           pair-colorizer-outermost-only-face-count)))))
              "-face"))))
  
-(defun rainbow-delimiters--apply-color (loc depth match)
+(defun pair-colorizer-apply-color (loc depth match)
   "Highlight a single delimiter at LOC according to DEPTH.
 
 LOC is the location of the character to add text properties to.
@@ -426,26 +430,26 @@ DEPTH is the nested depth at LOC, which determines the face to use.
 MATCH is nil iff it's a mismatched closing delimiter."
 
   ;; if loc is in last-paren, then we use inside face to show it
-  (let ((inside (and rainbow-delimiters-emphasise
+  (let ((inside (and pair-colorizer-emphasise
                      (or
-                      (and (car rainbow-delimiters--last-paren)
-                           (= loc (car rainbow-delimiters--last-paren)))
-                      (and (cadr rainbow-delimiters--last-paren)
-                           (= loc (cadr rainbow-delimiters--last-paren)))))))
+                      (and (car pair-colorizer-last-paren)
+                           (= loc (car pair-colorizer-last-paren)))
+                      (and (cadr pair-colorizer-last-paren)
+                           (= loc (cadr pair-colorizer-last-paren)))))))
     (let ((face
            (if inside
-               (funcall rainbow-delimiters-emphasise-pick-face-function depth match) 
-             (funcall rainbow-delimiters-colorize-pick-face-function depth match loc))))
+               (funcall pair-colorizer-emphasise-pick-face-function depth match loc) 
+             (funcall pair-colorizer-pick-face-function depth match loc))))
       (when face
         (if inside
-            (let ((giveyouface (funcall rainbow-delimiters-colorize-pick-face-function depth match loc)))
+            (let ((giveyouface (funcall pair-colorizer-pick-face-function depth match loc)))
               (when giveyouface
-                (setcar (cddr rainbow-delimiters--last-paren)
+                (setcar (cddr pair-colorizer-last-paren)
                         giveyouface))))
         
-        (rainbow-delimiters--add-text-property loc 'face face)))))
+        (pair-colorizer-add-text-property loc 'face face)))))
 
-(defun rainbow-delimiters--char-ineligible-p (loc ppss delim-syntax-code)
+(defun pair-colorizer-char-ineligible-p (loc ppss delim-syntax-code)
   "Return t if char at LOC should not be highlighted.
 PPSS is the `parse-partial-sexp' state at LOC.
 DELIM-SYNTAX-CODE is the `car' of a raw syntax descriptor at LOC.
@@ -471,7 +475,7 @@ Returns t if char at loc meets one of the following conditions:
      nil))))
 
 ;; Main function called by font-lock.
-(defun rainbow-delimiters--propertize (end)
+(defun pair-colorizer-propertize (end)
   "Highlight delimiters in region between point and END.
 
 Used by font-lock for dynamic highlighting."
@@ -497,19 +501,19 @@ Used by font-lock for dynamic highlighting."
           ;; (message "char `%d'..." (char-after (nth 1 ppss)))
           (let ((delim-syntax-code (car delim-syntax)))
             (cond
-             ((rainbow-delimiters--char-ineligible-p delim-pos ppss delim-syntax-code)
+             ((pair-colorizer-char-ineligible-p delim-pos ppss delim-syntax-code)
               nil)
              ;; opening delimiter, include [, ( 
              ((= 4 (logand #xFFFF delim-syntax-code))
               ;; The (1+ ...) is needed because `parse-partial-sexp' returns the
               ;; depth at the opening delimiter, not in the block being started.
-              (rainbow-delimiters--apply-color delim-pos (1+ (nth 0 ppss)) t))
+              (pair-colorizer-apply-color delim-pos (1+ (nth 0 ppss)) t))
              
              ((= 5 (logand #xFFFF delim-syntax-code))
               ;; Not an opening delimiter, so it's a closing delimiter.
               ;; before color it, check if this delimiter match opening delimiter
               (let ((matches-p (eq (cdr delim-syntax) (char-after (nth 1 ppss)))))
-                (rainbow-delimiters--apply-color delim-pos (nth 0 ppss) matches-p))))))))
+                (pair-colorizer-apply-color delim-pos (nth 0 ppss) matches-p))))))))
     )
 
   ;; We already fontified the delimiters, tell font-lock there's nothing more
@@ -518,31 +522,31 @@ Used by font-lock for dynamic highlighting."
 
 ;; NB: no face defined here because we apply the faces ourselves instead of
 ;; leaving that to font-lock.
-(defconst rainbow-delimiters--font-lock-keywords
-  '(rainbow-delimiters--propertize))
+(defconst pair-colorizer-font-lock-keywords
+  '(pair-colorizer-propertize))
 
 ;;;###autoload
-(define-minor-mode rainbow-delimiters-mode
+(define-minor-mode pair-colorizer-mode
   "Highlight nested parentheses, brackets, and braces according to their depth."
   :init-value nil
   :lighter "" ; No modeline lighter - it's already obvious when the mode is on.
   :keymap nil
-  (rainbow-delimiters-disable-colorize)
-  (when rainbow-delimiters-emphasise
-    (rainbow-delimiters-disable-emphasise))
+  (pair-colorizer-disable-colorize)
+  (when pair-colorizer-emphasise
+    (pair-colorizer-disable-emphasise))
   
-  (when rainbow-delimiters-mode
-    (rainbow-delimiters-enable-colorize)
-    (when rainbow-delimiters-emphasise
-      (rainbow-delimiters-enable-emphasise)))
+  (when pair-colorizer-mode
+    (pair-colorizer-enable-colorize)
+    (when pair-colorizer-emphasise
+      (pair-colorizer-enable-emphasise)))
   
   (when font-lock-mode
     (if (fboundp 'font-lock-flush)
         (font-lock-flush)
       (with-no-warnings (font-lock-fontify-buffer)))))
 
-(defun rainbow-delimiters-enable-colorize ()
-  (font-lock-add-keywords nil rainbow-delimiters--font-lock-keywords 'append) 
+(defun pair-colorizer-enable-colorize ()
+  (font-lock-add-keywords nil pair-colorizer-font-lock-keywords 'append) 
   (set (make-local-variable 'jit-lock-contextually) t)
   (when (or (bound-and-true-p syntax-begin-function)
             (bound-and-true-p font-lock-beginning-of-syntax-function))
@@ -558,16 +562,15 @@ Used by font-lock for dynamic highlighting."
   (when (boundp 'font-lock-beginning-of-syntax-function)
     (set (make-local-variable 'font-lock-beginning-of-syntax-function) nil)))
 
-(defun rainbow-delimiters-disable-colorize ()
-  (font-lock-remove-keywords nil rainbow-delimiters--font-lock-keywords))
+(defun pair-colorizer-disable-colorize ()
+  (font-lock-remove-keywords nil pair-colorizer-font-lock-keywords))
 
-(defun rainbow-delimiters-enable-emphasise ()
-  (add-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event 0 t))
+(defun pair-colorizer-enable-emphasise ()
+  (add-hook 'post-command-hook #'pair-colorizer-inside-this-parenthesis-event 0 t))
 
-(defun rainbow-delimiters-disable-emphasise ()
-  (remove-hook 'post-command-hook #'rainbow-delimiters--inside-this-parenthesis-event t)
-  (set (make-local-variable 'rainbow-delimiters--last-paren) '()))
+(defun pair-colorizer-disable-emphasise ()
+  (remove-hook 'post-command-hook #'pair-colorizer-inside-this-parenthesis-event t)
+  (set (make-local-variable 'pair-colorizer-last-paren) '()))
 
-(provide 'rainbow-delimiters)
-;;; rainbow-delimiters.el ends here
-
+(provide 'pair-colorizer)
+;;; pair-colorizer.el ends here

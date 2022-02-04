@@ -1,4 +1,4 @@
-* rainbow-delimiters (with emphasise)
+* pair-colorizer
 
 It is a fork from the brilliant [[https://github.com/Fanael/rainbow-delimiters][rainbow-delimiters]], base it, I develop the feature of emphasising delimiters of current cursor mode. Since I change too much of it, So I make a new repo to develop it.
 
@@ -10,33 +10,31 @@ It is a fork from the brilliant [[https://github.com/Fanael/rainbow-delimiters][
 
 * Installation
 
-Currently, this tool is in alpha state, maybe it's not perfect, so I don't upload it to Melpa or elpa, but when it is, I will.
-
 You can install it manually, steps:
-- download rainbow-delimiters.el
-- put it into your load directory
-- (add-to-list 'load-path "~/.emacs.d/xx/xx")
-
+- download pair-colorizer.el
+- put it into your load directory, ie: =(add-to-list 'load-path "~/.emacs.d/xx/xx")=
+- =(require 'pair-colorizer)=
+  
 You can also use =package-install-from-buffer= to install it.
 
 * Usage
 
-To toggle the =rainbow-delimiters-mode= in the current buffer:
+To toggle the =pair-colorizer-mode= in the current buffer:
 
 #+begin_src emacs-lisp
-  M-x rainbow-delimiters-mode
+  M-x pair-colorizer-mode
 #+end_src
 
-At default, the =rainbow-delimiters-emphasise= is enable, if you don't like it, you can turn off it use:
+At default, the =pair-colorizer-emphasise= is enable, if you don't like it, you can turn off it use:
 
 #+begin_src emacs-lisp
-  (custom-set-variables '(rainbow-delimiters-emphasise nil))
+  (custom-set-variables '(pair-colorizer-emphasise nil))
 #+end_src
 
 To start the mode automatically in most programming modes (Emacs 24 and above):
 
 #+begin_src emacs-lisp
-  (add-hook 'prog-mode-hook #'rainbow-delimiters-mode)
+  (add-hook 'prog-mode-hook #'pair-colorizer-mode)
 #+end_src
 
 * configuration
@@ -44,36 +42,36 @@ To start the mode automatically in most programming modes (Emacs 24 and above):
 You can set your own rainbow colors use:
 
 #+begin_src emacs-lisp
-  (setq rainbow-delimiters-light-colors ["#xx" "#xx"])
-  (setq rainbow-delimiters-dark-colors ["#xx" "#xx"])
+  (setq pair-colorizer-light-colors ["#xx" "#xx"])
+  (setq pair-colorizer-dark-colors ["#xx" "#xx"])
 #+end_src
 
 You can also use customize-group to customize various options, including the color theme:
 
 #+begin_src emacs-lisp
-  M-x customize-group <RET> rainbow-delimiters
+  M-x customize-group <RET> pair-colorizer
 #+end_src
 
 The config above cannot change the detail face when emphasise, you can specify faces by customizing following faces:
 
-- Colorized faces take the form =rainbow-delimiters-colorized-depth-N-face=, with N being the length of your colors vector, at default N equals 9.
-- Emphasised faces take the form =rainbow-delimiters-emphasise-depth-N-face=, with N being the length of your colors vector, at default N equals 9.
-- You can toggle emphasise feature using =rainbow-delimiters-emphasise=.
-- The unmatched delimiter face: =rainbow-delimiters-unmatched-face=.
-- The mismatched delimiter face: =rainbow-delimiters-mismatched-face=.
+- Colorized faces take the form =pair-colorizer-depth-N-face=, with N being the length of your colors vector, at default N equals 9.
+- Emphasised faces take the form =pair-colorizer-emphasise-depth-N-face=, with N being the length of your colors vector, at default N equals 9.
+- You can toggle emphasise feature using =pair-colorizer-emphasise=.
+- The unmatched delimiter face: =pair-colorizer-unmatched-face=.
+- The mismatched delimiter face: =pair-colorizer-mismatched-face=.
 
 Below is my configuration for the theme =doom-material=.
 
 #+begin_src emacs-lisp
-  (custom-set-variables '(rainbow-delimiters-emphasise t))
-  (setq rainbow-delimiters-dark-colors
+  (custom-set-variables '(pair-colorizer-emphasise t))
+  (setq pair-colorizer-dark-colors
         ["#c792ea" "#f78c6c" "#c3e88d" "#89DDFF" "#bb80b3"
          "#ffcb6b" "#82aaff" "#44b9b1" "#80cbc4"])
   (custom-set-faces
-   '(rainbow-delimiters-base-face ((t (:inherit default))))
-   '(rainbow-delimiters-base-error-face ((t (:inherit rainbow-delimiters-base-face :foreground "#ff5370"))))
-   '(rainbow-delimiters-unmatched-face ((t (:foreground "#ff5370" :inverse-video t :weight bold))))
-   '(rainbow-delimiters-mismatched-face ((t (:inherit rainbow-delimiters-unmatched-face))))
+   '(pair-colorizer-base-face ((t (:inherit default))))
+   '(pair-colorizer-base-error-face ((t (:inherit pair-colorizer-base-face :foreground "#ff5370"))))
+   '(pair-colorizer-unmatched-face ((t (:foreground "#ff5370" :inverse-video t :weight bold))))
+   '(pair-colorizer-mismatched-face ((t (:inherit pair-colorizer-unmatched-face))))
 #+end_src
 
 Hope it will help you!
