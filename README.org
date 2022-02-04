@@ -25,7 +25,7 @@ To toggle the =pair-colorizer-mode= in the current buffer:
   M-x pair-colorizer-mode
 #+end_src
 
-At default, the =pair-colorizer-emphasise= is enable, if you don't like it, you can turn off it use:
+At default, the =pair-colorizer-emphasise= is enable, if you don't like it, you can turn it off by follows:
 
 #+begin_src emacs-lisp
   (custom-set-variables '(pair-colorizer-emphasise nil))
@@ -42,7 +42,9 @@ To start the mode automatically in most programming modes (Emacs 24 and above):
 You can set your own rainbow colors use:
 
 #+begin_src emacs-lisp
+  ;; for light background
   (setq pair-colorizer-light-colors ["#xx" "#xx"])
+  ;; for dark background
   (setq pair-colorizer-dark-colors ["#xx" "#xx"])
 #+end_src
 
@@ -52,26 +54,27 @@ You can also use customize-group to customize various options, including the col
   M-x customize-group <RET> pair-colorizer
 #+end_src
 
-The config above cannot change the detail face when emphasise, you can specify faces by customizing following faces:
+You can specify faces by customizing following faces:
 
-- Colorized faces take the form =pair-colorizer-depth-N-face=, with N being the length of your colors vector, at default N equals 9.
-- Emphasised faces take the form =pair-colorizer-emphasise-depth-N-face=, with N being the length of your colors vector, at default N equals 9.
-- You can toggle emphasise feature using =pair-colorizer-emphasise=.
 - The unmatched delimiter face: =pair-colorizer-unmatched-face=.
 - The mismatched delimiter face: =pair-colorizer-mismatched-face=.
 
-Below is my configuration for the theme =doom-material=.
+You can change the strategy of picking colorized face or emphasised face for a certain depth.
+
+- To pick a face used to highlight a delimiter: =pair-colorizer-pick-face-function= 
+- To pick a face used to emphasise a delimiter of current cursor: =pair-colorizer-emphasise-pick-face-function=.
+  
+Below is my configuration.
 
 #+begin_src emacs-lisp
   (custom-set-variables '(pair-colorizer-emphasise t))
+  (custom-set-faces
+   '(pair-colorizer-unmatched-face ((t (:foreground "#ff5370" :inverse-video t :weight bold))))
+   '(pair-colorizer-mismatched-face ((t (:inherit pair-colorizer-unmatched-face))))
+
   (setq pair-colorizer-dark-colors
         ["#c792ea" "#f78c6c" "#c3e88d" "#89DDFF" "#bb80b3"
          "#ffcb6b" "#82aaff" "#44b9b1" "#80cbc4"])
-  (custom-set-faces
-   '(pair-colorizer-base-face ((t (:inherit default))))
-   '(pair-colorizer-base-error-face ((t (:inherit pair-colorizer-base-face :foreground "#ff5370"))))
-   '(pair-colorizer-unmatched-face ((t (:foreground "#ff5370" :inverse-video t :weight bold))))
-   '(pair-colorizer-mismatched-face ((t (:inherit pair-colorizer-unmatched-face))))
 #+end_src
 
 Hope it will help you!

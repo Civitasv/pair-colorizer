@@ -88,7 +88,7 @@
   :group 'applications)
 
 (defgroup pair-colorizer-faces nil
- "Faces for successively nested pairs of delimiters.
+  "Faces for successively nested pairs of delimiters.
 
 When depth exceeds innermost defined face, colors cycle back through."
   :group 'pair-colorizer
@@ -105,6 +105,12 @@ When depth exceeds innermost defined face, colors cycle back through."
   ["#c792ea" "#f78c6c" "#c3e88d" "#89DDFF" "#bb80b3"
    "#ffcb6b" "#82aaff" "#44b9b1" "#80cbc4"]
   "dark colors used to colorize pairs")
+
+(defvar pair-colorizer-faces
+  nil)
+
+(defvar pair-colorizer-emphasise-faces
+  nil)
 
 (defcustom pair-colorizer-pick-face-function
   #'pair-colorizer-default-pick-face
@@ -173,8 +179,8 @@ The function should not move the point or mark or change the match data."
          pos
          (1+ pos)
          `(,property nil
-                front-sticky nil
-                rear-nonsticky nil))
+                     front-sticky nil
+                     rear-nonsticky nil))
         )
     )
   )
@@ -189,11 +195,11 @@ The function should not move the point or mark or change the match data."
          pos
          (1+ pos)
          `(,property ,value
-                front-sticky nil
-                rear-nonsticky t)
+                     front-sticky nil
+                     rear-nonsticky t)
          )
-    )
-  ))
+        )
+    ))
 
 (defun pair-colorizer-match (a b)
   (and a
@@ -238,11 +244,11 @@ The function should not move the point or mark or change the match data."
                   (or (= (car current) (caddr current))
                       (= (car current) (cadddr current))))
              current)
-             ((and (cadr left)
-                   (caddr left)
-                   (cadddr left)
-                   (or (= (car left) (caddr left))
-                       (= (car left) (cadddr left))))
+            ((and (cadr left)
+                  (caddr left)
+                  (cadddr left)
+                  (or (= (car left) (caddr left))
+                      (= (car left) (cadddr left))))
              left)
             ((and (cadr right)
                   (caddr right)
@@ -254,15 +260,20 @@ The function should not move the point or mark or change the match data."
 
 (defun pair-colorizer-cancel-last-and-cache-now ()
   (defun recover (start end face)
-    (let ((matches (pair-colorizer-match (char-after start) (char-after end))))
-      (when matches
-        ;; (message "`%d'" start)
-        ;; (message "`%d'" end)
-        (pair-colorizer-remove-text-property start 'face nil)
-        (pair-colorizer-remove-text-property end 'face nil)
-        (pair-colorizer-add-text-property start 'face face)
-        (pair-colorizer-add-text-property end 'face face))))
- 
+    (defun canrecover (point)
+      (let ((a (char-after point)))
+        (or
+         (eq a 40) (eq a 41)
+         (eq a 91) (eq a 93)
+         (eq a 123) (eq a 125)
+         )))
+    (when (canrecover start)
+      (pair-colorizer-remove-text-property start 'face nil)
+      (pair-colorizer-add-text-property start 'face face))
+    (when (canrecover end)
+      (pair-colorizer-remove-text-property end 'face nil)
+      (pair-colorizer-add-text-property end 'face face))) 
+  
   (with-silent-modifications
     (let ((lopen
            (car pair-colorizer-last-paren))
@@ -280,6 +291,7 @@ The function should not move the point or mark or change the match data."
                (setq pair-colorizer-last-paren
                      `(,cstart ,cend
                                ,(get-text-property cstart 'face))))
+             
               ((and lopen lclose (not cstart))
                ;; (message "second")
                (recover lopen lclose loface)
@@ -325,34 +337,46 @@ The function should not move the point or mark or change the match data."
       (length pair-colorizer-light-colors))
     ))
 
-(eval-when-compile
-  (defmacro pair-colorizer-define-depth-faces ()
-    (let ((faces '())
-          (light-colors pair-colorizer-light-colors)
-          (dark-colors pair-colorizer-dark-colors)
-          )
-      
-      (dotimes (i (pair-colorizer-max-face-count))
-        (push `(defface ,(intern (format "pair-colorizer-colorize-depth-%d-face" (1+ i)))
-                 '((default (:inherit pair-colorizer-base-face))
-                   (((class color) (background light)) :foreground ,(aref light-colors i))
-                   (((class color) (background dark)) :foreground ,(aref dark-colors i)))
-                 ,(format "Nested delimiter face, used to colorize delimiters at depth %d." (1+ i))
-                 :group 'pair-colorizer-faces)
-              faces)
+(defun pair-colorizer-calculate-show-depth (depth)
+  (let ((max-face-count (pair-colorizer-max-face-count)))
+    (if (<= depth max-face-count)
+        ;; Our nesting depth has a face defined for it.
+        depth
+      ;; Deeper than # of defined faces; cycle back through to
+      ;; `pair-colorizer-outermost-only-face-count' + 1.
+      ;; Return face # that corresponds to current nesting level.
+      (+ 1 pair-colorizer-outermost-only-face-count
+         (mod (- depth max-face-count 1)
+              (- max-face-count
+                 pair-colorizer-outermost-only-face-count))))))
 
-        (push `(defface ,(intern (format "pair-colorizer-emphasise-depth-%d-face" (1+ i)))
-                 '((default (:inherit pair-colorizer-base-face))
-                   (((class color) (background light)) :foreground ,(aref light-colors i) :height 1.0 :width normal :box (:line-width 1 :color "grey75"))
-                   (((class color) (background dark)) :foreground ,(aref dark-colors i) :height 1.0 :width normal :box (:line-width 1 :color "grey75")))
-                 ,(format "Nested delimiter face, used to emphasise delimiters at depth %d." (1+ i))
-                 :group 'pair-colorizer-faces
-                 )
-              faces)
-        )
-      `(progn ,@faces))))
+(defun pair-colorizer-get-face (depth)
+  (let ((d (pair-colorizer-calculate-show-depth depth)))    
+    (when (not (gethash d pair-colorizer-faces))
+      (let ((face (eval
+                   `(defface ,(intern (format "pair-colorizer-depth-%d-face" d))
+                      '((default (:inherit pair-colorizer-base-face))
+                        (((class color) (background light)) :foreground ,(aref pair-colorizer-light-colors (1- d)))
+                        (((class color) (background dark)) :foreground ,(aref pair-colorizer-dark-colors (1- d))))
+                      ,(format "Nested delimiter face, used to colorize delimiters at depth %d." d)
+                      :group 'pair-colorizer-faces))))
+        (puthash d face pair-colorizer-faces)))
+    
+    (gethash d pair-colorizer-faces)))
 
-(pair-colorizer-define-depth-faces)
+(defun pair-colorizer-get-emphasise-face (depth)
+  (let ((d (pair-colorizer-calculate-show-depth depth)))    
+    (when (not (gethash d pair-colorizer-emphasise-faces))
+      (let ((face (eval
+                   `(defface ,(intern (format "pair-colorizer-emphasise-depth-%d-face" d))
+                      '((default (:inherit pair-colorizer-base-face))
+                        (((class color) (background light)) :foreground ,(aref pair-colorizer-light-colors (1- d)) :height 1.0 :width normal :box (:line-width 1 :color "grey75"))
+                        (((class color) (background dark)) :foreground ,(aref pair-colorizer-dark-colors (1- d)) :height 1.0 :width normal :box (:line-width 1 :color "grey75")))
+                      ,(format "Nested delimiter face, used to emphasise delimiters at depth %d." d)
+                      :group 'pair-colorizer-faces))))
+        (puthash d face pair-colorizer-emphasise-faces)))
+
+    (gethash d pair-colorizer-emphasise-faces)))
 
 (defcustom pair-colorizer-outermost-only-face-count 0
   "Number of faces to be used only for N outermost delimiter levels.
@@ -383,20 +407,7 @@ The returned value is either `pair-colorizer-unmatched-face',
      ((not match)
       'pair-colorizer-mismatched-face)
      (t
-      (intern-soft
-       (concat "pair-colorizer-colorize-depth-"
-               (number-to-string
-                (if (<= depth max-face-count)
-                    ;; Our nesting depth has a face defined for it.
-                    depth
-                  ;; Deeper than # of defined faces; cycle back through to
-                  ;; `pair-colorizer-outermost-only-face-count' + 1.
-                  ;; Return face # that corresponds to current nesting level.
-                  (+ 1 pair-colorizer-outermost-only-face-count
-                     (mod (- depth max-face-count 1)
-                          (- max-face-count
-                             pair-colorizer-outermost-only-face-count)))))
-               "-face"))))))
+      (pair-colorizer-get-face depth)))))
 
 (defun pair-colorizer-emphasise-default-pick-face (depth _match _loc)
   "Return a face name appropriate for nesting depth DEPTH.
@@ -407,21 +418,8 @@ The returned value is one of the
 `pair-colorizer-max-face-count' and
 `pair-colorizer-outermost-only-face-count'."
   (let ((max-face-count (pair-colorizer-max-face-count)))
-    (intern-soft
-     (concat "pair-colorizer-emphasise-depth-"
-             (number-to-string
-              (if (<= depth max-face-count)
-                  ;; Our nesting depth has a face defined for it.
-                  depth
-                ;; Deeper than # of defined faces; cycle back through to
-                ;; `pair-colorizer-outermost-only-face-count' + 1.
-                ;; Return face # that corresponds to current nesting level.
-                (+ 1 pair-colorizer-outermost-only-face-count
-                   (mod (- depth max-face-count 1)
-                        (- max-face-count
-                           pair-colorizer-outermost-only-face-count)))))
-             "-face"))))
- 
+    (pair-colorizer-get-emphasise-face depth)))
+
 (defun pair-colorizer-apply-color (loc depth match)
   "Highlight a single delimiter at LOC according to DEPTH.
 
@@ -548,6 +546,8 @@ Used by font-lock for dynamic highlighting."
 (defun pair-colorizer-enable-colorize ()
   (font-lock-add-keywords nil pair-colorizer-font-lock-keywords 'append) 
   (set (make-local-variable 'jit-lock-contextually) t)
+  (set 'pair-colorizer-faces (make-hash-table :size (pair-colorizer-max-face-count)))
+  
   (when (or (bound-and-true-p syntax-begin-function)
             (bound-and-true-p font-lock-beginning-of-syntax-function))
     ;; We're going to modify `syntax-begin-function', so flush the cache to
@@ -563,14 +563,17 @@ Used by font-lock for dynamic highlighting."
     (set (make-local-variable 'font-lock-beginning-of-syntax-function) nil)))
 
 (defun pair-colorizer-disable-colorize ()
-  (font-lock-remove-keywords nil pair-colorizer-font-lock-keywords))
+  (font-lock-remove-keywords nil pair-colorizer-font-lock-keywords)
+  (set 'pair-colorizer-faces nil)) 
 
 (defun pair-colorizer-enable-emphasise ()
-  (add-hook 'post-command-hook #'pair-colorizer-inside-this-parenthesis-event 0 t))
+  (add-hook 'post-command-hook #'pair-colorizer-inside-this-parenthesis-event 0 t)
+  (set 'pair-colorizer-emphasise-faces (make-hash-table :size (pair-colorizer-max-face-count))))
 
 (defun pair-colorizer-disable-emphasise ()
   (remove-hook 'post-command-hook #'pair-colorizer-inside-this-parenthesis-event t)
-  (set (make-local-variable 'pair-colorizer-last-paren) '()))
+  (set (make-local-variable 'pair-colorizer-last-paren) '())
+  (set 'pair-colorizer-emphasise-faces nil))
 
 (provide 'pair-colorizer)
 ;;; pair-colorizer.el ends here
