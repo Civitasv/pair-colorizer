@@ -370,8 +370,8 @@ The function should not move the point or mark or change the match data."
       (let ((face (eval
                    `(defface ,(intern (format "pair-colorizer-emphasise-depth-%d-face" d))
                       '((default (:inherit pair-colorizer-base-face))
-                        (((class color) (background light)) :foreground ,(aref pair-colorizer-light-colors (1- d)) :height 1.0 :width normal :box (:line-width 1 :color "grey75"))
-                        (((class color) (background dark)) :foreground ,(aref pair-colorizer-dark-colors (1- d)) :height 1.0 :width normal :box (:line-width 1 :color "grey75")))
+                        (((class color) (background light)) :foreground ,(aref pair-colorizer-light-colors (1- d)) :weight bold)
+                        (((class color) (background dark)) :foreground ,(aref pair-colorizer-dark-colors (1- d)) :weight bold))
                       ,(format "Nested delimiter face, used to emphasise delimiters at depth %d." d)
                       :group 'pair-colorizer-faces))))
         (puthash d face pair-colorizer-emphasise-faces)))
